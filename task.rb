@@ -52,12 +52,50 @@ class Order < ActiveRecord::Base
   has_many :refunds
 
   # TASK 1: Add order model methods so that all tests pass
+  after_initialize :set_initial_status
+
+  def refund!(amount = refundable_amount_in_cents)
+    refunds.create!(amount_in_cents: amount)
+  end
+
+  def refunded_amount_in_cents
+    refunds.sum(:amount_in_cents)
+  end
+
+  def can_refund?(amount = nil)
+    amount ? amount <= refundable_amount_in_cents : refundable_amount_in_cents.positive?
+  end
+
+  def refundable_amount_in_cents
+    total_in_cents - refunded_amount_in_cents
+  end
+
+  private
+
+  def set_initial_status
+    self.status ||= :paid
+  end
 end
 
 class Refund < ActiveRecord::Base
   belongs_to :order
 
   # TASK 2: Add refund model methods so that all tests pass
+  validates :order, presence: { message: "can't be blank" }
+  validate :validate_refund_amount_against_order
+  after_create :update_order_status
+
+  private
+
+  def validate_refund_amount_against_order
+    return unless order && amount_in_cents > order.refundable_amount_in_cents
+
+    errors.add(:base, 'Amount in cents is invalid')
+  end
+
+  def update_order_status
+    order.refunded!
+  end
 end
 
 class RefundTest < Minitest::Test
@@ -65,6 +103,18 @@ class RefundTest < Minitest::Test
     order = Order.create! total_in_cents: 16_000
 
     assert order.paid?
+  end
+
+  def test_refundable_amount_in_cents
+    order = Order.create! total_in_cents: 16_000
+
+    order.refund! 6000
+
+    assert_equal 10_000, order.refundable_amount_in_cents
+
+    order.refund! 6000
+
+    assert_equal 4000, order.refundable_amount_in_cents
   end
 
   def test_refunded_status
