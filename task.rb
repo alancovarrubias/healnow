@@ -52,7 +52,7 @@ class Order < ActiveRecord::Base
   has_many :refunds
 
   # TASK 1: Add order model methods so that all tests pass
-  after_initialize :set_initial_status
+  after_initialize :set_default_status
 
   def refund!(amount = refundable_amount_in_cents)
     refunds.create!(amount_in_cents: amount)
@@ -72,8 +72,8 @@ class Order < ActiveRecord::Base
 
   private
 
-  def set_initial_status
-    self.status ||= :paid
+  def set_default_status
+    paid! unless status
   end
 end
 
